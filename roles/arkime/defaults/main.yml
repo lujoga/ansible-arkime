@@ -1,0 +1,22 @@
+---
+
+arkime_distributions:
+  bionic: ubuntu-18.04
+  bullseye: ubuntu-20.04
+  buster: ubuntu-18.04
+  focal: ubuntu-20.04
+  xenial: ubuntu-16.04
+
+arkime_elasticsearch: system
+arkime_elasticsearch_version: 7.13.1
+
+arkime_initial_user:
+  id: moloch
+  name: Moloch
+  password: '{{ vault_arkime_moloch_password }}'
+
+arkime_interfaces: []
+
+arkime_password: '{{ vault_arkime_password }}'
+
+arkime_version: 2.7.1

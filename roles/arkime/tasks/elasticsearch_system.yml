@@ -1,0 +1,10 @@
+---
+
+- name: Install Elasticsearch locally
+  apt:
+    deb: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{{ arkime_elasticsearch_version }}-amd64.deb
+
+- name: Start Elasticsearch service
+  service:
+    name: elasticsearch
+    state: started

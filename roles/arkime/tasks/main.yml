@@ -1,0 +1,73 @@
+---
+
+- name: Check if distribution on hand is supported
+  assert:
+    that: ansible_facts['distribution_release'] in arkime_distributions
+    fail_msg: This distribution may not support Arkime.
+
+- name: Install dependencies
+  apt:
+    name:
+      - ethtool
+      - libjson-perl
+      - libmagic1
+      - libwww-perl
+      - libyaml-dev
+    install_recommends: no
+    update_cache: yes
+
+- name: Install Arkime
+  apt:
+    deb: https://s3.amazonaws.com/files.molo.ch/builds/{{ arkime_distributions[ansible_facts['distribution_release']] }}/moloch_2.7.1-1_amd64.deb
+
+- name: Setup local Elasticsearch instance
+  include_tasks: elasticsearch_{{ arkime_elasticsearch }}.yml
+
+- name: Check if this is the first run with this installation
+  stat:
+    path: /data/moloch/.once
+  register: arkime_checkonce_result
+
+- name: Configure Arkime
+  command: /data/moloch/bin/Configure
+  environment:
+    MOLOCH_INTERFACE: "{{ arkime_interfaces | join(';') }}"
+    MOLOCH_PASSWORD: '{{ arkime_password }}'
+  register: arkime_configure_result
+  when: not arkime_checkonce_result.stat.exists
+
+- name: Initialize database
+  command: /data/moloch/db/db.pl 'http://localhost:9200' init
+  when: not arkime_checkonce_result.stat.exists
+
+- name: Add initial user
+  command: /data/moloch/bin/moloch_add_user.sh '{{ arkime_initial_user.id }}' '{{ arkime_initial_user.name }}' '{{ arkime_initial_user.password }}' --admin
+  when: not arkime_checkonce_result.stat.exists
+
+- name: Touch filesystem if this is the first run, so subsequent runs don't overwrite everything
+  file:
+    path: /data/moloch/.once
+    state: touch
+  when: not arkime_checkonce_result.stat.exists
+
+- name: Set snapLen to 65536 (prevents molochcapture from crashing when defragmentation cannot be turned off on the physical interface)
+  lineinfile:
+    path: /data/moloch/etc/config.ini
+    insertafter: ^\[default\]
+    line: snapLen=65536
+    search_string: snapLen=
+  register: arkime_snaplen_result
+
+- name: Restart molochcapture if snapLen setting has changed
+  service:
+    name: molochcapture
+    state: restarted
+  when: arkime_snaplen_result is changed
+
+- name: Start molochcapture and molochviewer
+  service:
+    name: '{{ item }}'
+    state: started
+  loop:
+    - molochcapture
+    - molochviewer
